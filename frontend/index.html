@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NoSQL Book Analytics & Query Dashboard | MongoDB</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mongo: {
+              green: '#00ED64',
+              dark: '#001E2B',
+              slate: '#023430',
+              accent: '#00684A'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #090d16; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #334155; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950">
+
+  <!-- Header -->
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-green-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-slate-950 font-bold text-lg">
+          <i class="fa-solid fa-database"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-base sm:text-lg font-bold text-white tracking-tight">NoSQL Book Analytics &amp; Query Dashboard</h1>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-mono border border-emerald-500/20">MongoDB Live</span>
+          </div>
+          <p class="text-xs text-slate-400">Interactive Visualizations with Live MongoDB Query Execution • Ananya Jaiswal</p>
+        </div>
+      </div>
+
+      <!-- MongoDB Compass Connection Indicator -->
+      <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-2 bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-mono">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="text-slate-400">mongodb://localhost:27017</span>
+          <span class="text-slate-600">/</span>
+          <span class="text-emerald-400 font-semibold">bookcrossing_nosql</span>
+        </div>
+
+        <button onclick="scrollToQueryConsole()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 shadow-md shadow-emerald-600/20">
+          <i class="fa-solid fa-terminal"></i>
+          <span>Custom Query Runner</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+
+    <!-- Toast Alert -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 hidden max-w-md bg-slate-900 border border-slate-700 shadow-2xl rounded-xl p-4 transition-all">
+      <div class="flex items-start space-x-3">
+        <div id="toast-icon" class="text-emerald-400 mt-0.5">
+          <i class="fa-solid fa-circle-check text-base"></i>
+        </div>
+        <div class="flex-1">
+          <h4 id="toast-title" class="text-xs font-bold text-white">Success</h4>
+          <p id="toast-msg" class="text-xs text-slate-300 mt-0.5"></p>
+        </div>
+        <button onclick="hideToast()" class="text-slate-500 hover:text-slate-300 text-xs">✕</button>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- SECTION 1: THE THREE ADDED DATASETS -->
+    <!-- ======================================================== -->
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+            <i class="fa-solid fa-layer-group text-emerald-400"></i>
+            <span>Datasets in MongoDB Database</span>
+          </h2>
+          <p class="text-xs text-slate-500">Loaded from semicolon-delimited CSVs into <code class="text-emerald-400 font-mono">bookcrossing_nosql</code></p>
+        </div>
+        <div class="text-xs text-slate-400">
+          <button onclick="refreshAllKPIs()" class="hover:text-emerald-400 transition flex items-center space-x-1">
+            <i class="fa-solid fa-rotate mr-1"></i> Refresh Dataset Stats
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Dataset 1: books.csv -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 relative overflow-hidden group hover:border-slate-700 transition">
+          <div class="flex items-start justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <i class="fa-solid fa-book"></i>
+              </div>
+              <div>
+                <h3 class="text-xs font-bold text-white">books.csv → db.books</h3>
+                <span class="text-[10px] text-slate-400 font-mono">Collection: books</span>
+              </div>
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">ISBN (Unique)</span>
+          </div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <div id="stat-books-count" class="text-2xl font-bold text-white tracking-tight">---</div>
+            <span class="text-[11px] text-slate-400">Catalogue items</span>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono truncate">
+            Fields: ISBN, Book-Title, Book-Author, Year, Publisher
+          </div>
+          <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500/50"></div>
+        </div>
+
+        <!-- Dataset 2: ratings.csv -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 relative overflow-hidden group hover:border-slate-700 transition">
+          <div class="flex items-start justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <i class="fa-solid fa-star-half-stroke"></i>
+              </div>
+              <div>
+                <h3 class="text-xs font-bold text-white">ratings.csv → db.ratings</h3>
+                <span class="text-[10px] text-slate-400 font-mono">Collection: ratings</span>
+              </div>
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">User-ID + ISBN</span>
+          </div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <div id="stat-ratings-count" class="text-2xl font-bold text-white tracking-tight">---</div>
+            <span class="text-[11px] text-slate-400">Ratings (0–10)</span>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 flex justify-between font-mono">
+            <span>Avg Explicit: <strong id="stat-avg-rating" class="text-amber-400">---</strong></span>
+            <span>Implicit (0): <strong id="stat-implicit-pct" class="text-slate-400">---%</strong></span>
+          </div>
+          <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500/50"></div>
+        </div>
+
+        <!-- Dataset 3: users.csv -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 relative overflow-hidden group hover:border-slate-700 transition">
+          <div class="flex items-start justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <i class="fa-solid fa-users"></i>
+              </div>
+              <div>
+                <h3 class="text-xs font-bold text-white">users.csv → db.users</h3>
+                <span class="text-[10px] text-slate-400 font-mono">Collection: users</span>
+              </div>
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">User-ID (Unique)</span>
+          </div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <div id="stat-users-count" class="text-2xl font-bold text-white tracking-tight">---</div>
+            <span class="text-[11px] text-slate-400">Reader profiles</span>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono truncate">
+            Fields: User-ID, Location (city, state, country), Age
+          </div>
+          <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500/50"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- SECTION 2: CHARTS & THEIR LIVE MONGODB QUERIES -->
+    <!-- ======================================================== -->
+    <div class="space-y-6">
+      <div class="border-b border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center space-x-2">
+            <span>Visual Analytics &amp; MongoDB Aggregation Pipelines</span>
+          </h2>
+          <p class="text-xs text-slate-400">Click <strong>"Run Query in MongoDB"</strong> on any chart to execute the exact pipeline live and see the query stats and raw results.</p>
+        </div>
+      </div>
+
+      <!-- CHART 1: RATING DISTRIBUTION (0-10) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">FIGURE 1</span>
+              <h3 class="text-sm font-bold text-white">Distribution of Book Ratings (0 to 10)</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Aggregates rating volume across all scores, demonstrating the implicit interaction volume (0) vs. explicit ratings (1–10).</p>
+          </div>
+          <button onclick="runChartQuery('rating-dist')" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 self-start sm:self-auto shadow-md shadow-emerald-600/20">
+            <i class="fa-solid fa-play text-[10px]"></i>
+            <span>Run Query in MongoDB</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <!-- Visual Chart Canvas -->
+          <div class="lg:col-span-7 bg-slate-950/70 border border-slate-800 rounded-xl p-4">
+            <div class="h-64">
+              <canvas id="chart-rating-dist"></canvas>
+            </div>
+          </div>
+
+          <!-- MongoDB Query & Telemetry Box -->
+          <div class="lg:col-span-5 space-y-3">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-mono text-slate-400 flex items-center space-x-1">
+                  <i class="fa-solid fa-code text-emerald-400"></i>
+                  <span>MongoDB Query (Collection: ratings)</span>
+                </span>
+                <button onclick="copyQuerySnippet('query-code-1')" class="text-[10px] text-slate-400 hover:text-emerald-400 transition">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <pre id="query-code-1" class="text-[11px] text-emerald-300 font-mono bg-slate-900 p-2.5 rounded-lg overflow-x-auto custom-scrollbar">db.ratings.aggregate([
+  {
+    $group: {
+      _id: "$Book-Rating",
+      count: { $sum: 1 }
+    }
+  },
+  { $sort: { _id: 1 } }
+])</pre>
+            </div>
+
+            <!-- Execution Result Telemetry -->
+            <div id="telemetry-rating-dist" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-slate-400">Execution Telemetry:</span>
+                <span id="tel-time-rating-dist" class="text-emerald-400 font-mono">Ready to run</span>
+              </div>
+              <details class="text-[11px] text-slate-400">
+                <summary class="cursor-pointer hover:text-slate-200">View Raw MongoDB JSON Output</summary>
+                <pre id="raw-rating-dist" class="mt-2 text-[10px] font-mono bg-slate-900 p-2 rounded text-slate-300 max-h-40 overflow-y-auto custom-scrollbar">Click "Run Query in MongoDB" to execute.</pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART 2: MOST FREQUENTLY RATED BOOKS ($LOOKUP) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] font-mono font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">FIGURE 2</span>
+              <h3 class="text-sm font-bold text-white">Most Frequently Rated Books ($lookup Join)</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Groups ratings by ISBN, computes explicit rating mean, and executes a <code class="text-blue-400 font-mono">$lookup</code> join with the books collection for metadata.</p>
+          </div>
+          <button onclick="runChartQuery('top-books')" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 self-start sm:self-auto shadow-md shadow-blue-600/20">
+            <i class="fa-solid fa-play text-[10px]"></i>
+            <span>Run Query in MongoDB</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <!-- Visual Chart Canvas -->
+          <div class="lg:col-span-7 bg-slate-950/70 border border-slate-800 rounded-xl p-4">
+            <div class="h-72">
+              <canvas id="chart-top-books"></canvas>
+            </div>
+          </div>
+
+          <!-- MongoDB Query & Telemetry Box -->
+          <div class="lg:col-span-5 space-y-3">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-mono text-slate-400 flex items-center space-x-1">
+                  <i class="fa-solid fa-code text-blue-400"></i>
+                  <span>MongoDB Pipeline ($lookup join)</span>
+                </span>
+                <button onclick="copyQuerySnippet('query-code-2')" class="text-[10px] text-slate-400 hover:text-blue-400 transition">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <pre id="query-code-2" class="text-[11px] text-blue-300 font-mono bg-slate-900 p-2.5 rounded-lg overflow-x-auto custom-scrollbar max-h-52">db.ratings.aggregate([
+  {
+    $group: {
+      _id: "$ISBN",
+      totalRatings: { $sum: 1 },
+      explicitRatings: {
+        $sum: { $cond: [{ $gt: ["$Book-Rating", 0] }, 1, 0] }
+      },
+      sumScore: {
+        $sum: { $cond: [{ $gt: ["$Book-Rating", 0] }, "$Book-Rating", 0] }
+      }
+    }
+  },
+  { $match: { totalRatings: { $gte: 3 } } },
+  {
+    $lookup: {
+      from: "books",
+      localField: "_id",
+      foreignField: "ISBN",
+      as: "book"
+    }
+  },
+  { $unwind: "$book" },
+  {
+    $project: {
+      title: "$book.Book-Title",
+      author: "$book.Book-Author",
+      totalRatings: 1,
+      meanPositiveRating: {
+        $round: [{ $divide: ["$sumScore", "$explicitRatings"] }, 2]
+      }
+    }
+  },
+  { $sort: { totalRatings: -1 } },
+  { $limit: 7 }
+])</pre>
+            </div>
+
+            <!-- Execution Result Telemetry -->
+            <div id="telemetry-top-books" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-slate-400">Execution Telemetry:</span>
+                <span id="tel-time-top-books" class="text-blue-400 font-mono">Ready to run</span>
+              </div>
+              <details class="text-[11px] text-slate-400">
+                <summary class="cursor-pointer hover:text-slate-200">View Raw MongoDB JSON Output</summary>
+                <pre id="raw-top-books" class="mt-2 text-[10px] font-mono bg-slate-900 p-2 rounded text-slate-300 max-h-40 overflow-y-auto custom-scrollbar">Click "Run Query in MongoDB" to execute.</pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART 3: TOP AUTHORS BY CATALOGUE REPRESENTATION -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20">FIGURE 3</span>
+              <h3 class="text-sm font-bold text-white">Authors with Largest Catalogue Representation</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Aggregates document counts grouped by <code class="text-amber-400 font-mono">Book-Author</code> in the books collection.</p>
+          </div>
+          <button onclick="runChartQuery('top-authors')" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 self-start sm:self-auto shadow-md shadow-amber-600/20">
+            <i class="fa-solid fa-play text-[10px]"></i>
+            <span>Run Query in MongoDB</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div class="lg:col-span-7 bg-slate-950/70 border border-slate-800 rounded-xl p-4">
+            <div class="h-64">
+              <canvas id="chart-top-authors"></canvas>
+            </div>
+          </div>
+
+          <div class="lg:col-span-5 space-y-3">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-mono text-slate-400 flex items-center space-x-1">
+                  <i class="fa-solid fa-code text-amber-400"></i>
+                  <span>MongoDB Query (Collection: books)</span>
+                </span>
+                <button onclick="copyQuerySnippet('query-code-3')" class="text-[10px] text-slate-400 hover:text-amber-400 transition">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <pre id="query-code-3" class="text-[11px] text-amber-300 font-mono bg-slate-900 p-2.5 rounded-lg overflow-x-auto custom-scrollbar">db.books.aggregate([
+  {
+    $match: {
+      "Book-Author": {
+        $nin: [null, "", "Unknown Author", "nan"]
+      }
+    }
+  },
+  {
+    $group: {
+      _id: "$Book-Author",
+      bookCount: { $sum: 1 }
+    }
+  },
+  { $sort: { bookCount: -1 } },
+  { $limit: 8 }
+])</pre>
+            </div>
+
+            <div id="telemetry-top-authors" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-slate-400">Execution Telemetry:</span>
+                <span id="tel-time-top-authors" class="text-amber-400 font-mono">Ready to run</span>
+              </div>
+              <details class="text-[11px] text-slate-400">
+                <summary class="cursor-pointer hover:text-slate-200">View Raw MongoDB JSON Output</summary>
+                <pre id="raw-top-authors" class="mt-2 text-[10px] font-mono bg-slate-900 p-2 rounded text-slate-300 max-h-40 overflow-y-auto custom-scrollbar">Click "Run Query in MongoDB" to execute.</pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART 4: PUBLICATION YEAR BANDS -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] font-mono font-bold bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded border border-purple-500/20">FIGURE 4</span>
+              <h3 class="text-sm font-bold text-white">Book Catalogue by Publication-Year Band</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Validates and categorizes publication years into cohorts (`≤1900` to `2011–2026`) via a <code class="text-purple-400 font-mono">$switch</code> stage.</p>
+          </div>
+          <button onclick="runChartQuery('pub-years')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 self-start sm:self-auto shadow-md shadow-purple-600/20">
+            <i class="fa-solid fa-play text-[10px]"></i>
+            <span>Run Query in MongoDB</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div class="lg:col-span-7 bg-slate-950/70 border border-slate-800 rounded-xl p-4">
+            <div class="h-64">
+              <canvas id="chart-pub-years"></canvas>
+            </div>
+          </div>
+
+          <div class="lg:col-span-5 space-y-3">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-mono text-slate-400 flex items-center space-x-1">
+                  <i class="fa-solid fa-code text-purple-400"></i>
+                  <span>MongoDB Query (Collection: books)</span>
+                </span>
+                <button onclick="copyQuerySnippet('query-code-4')" class="text-[10px] text-slate-400 hover:text-purple-400 transition">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <pre id="query-code-4" class="text-[11px] text-purple-300 font-mono bg-slate-900 p-2.5 rounded-lg overflow-x-auto custom-scrollbar max-h-52">db.books.aggregate([
+  {
+    $match: {
+      "Year-Of-Publication": { $gte: 1450, $lte: 2026 }
+    }
+  },
+  {
+    $project: {
+      yearBand: {
+        $switch: {
+          branches: [
+            { case: { $lte: ["$Year-Of-Publication", 1900] }, then: "≤1900" },
+            { case: { $and: [{ $gte: ["$Year-Of-Publication", 1901] }, { $lte: ["$Year-Of-Publication", 1950] }] }, then: "1901–1950" },
+            { case: { $and: [{ $gte: ["$Year-Of-Publication", 1951] }, { $lte: ["$Year-Of-Publication", 1980] }] }, then: "1951–1980" },
+            { case: { $and: [{ $gte: ["$Year-Of-Publication", 1981] }, { $lte: ["$Year-Of-Publication", 1990] }] }, then: "1981–1990" },
+            { case: { $and: [{ $gte: ["$Year-Of-Publication", 1991] }, { $lte: ["$Year-Of-Publication", 2000] }] }, then: "1991–2000" },
+            { case: { $and: [{ $gte: ["$Year-Of-Publication", 2001] }, { $lte: ["$Year-Of-Publication", 2010] }] }, then: "2001–2010" },
+            { case: { $gte: ["$Year-Of-Publication", 2011] }, then: "2011–2026" }
+          ],
+          default: "Other"
+        }
+      }
+    }
+  },
+  { $group: { _id: "$yearBand", count: { $sum: 1 } } }
+])</pre>
+            </div>
+
+            <div id="telemetry-pub-years" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-slate-400">Execution Telemetry:</span>
+                <span id="tel-time-pub-years" class="text-purple-400 font-mono">Ready to run</span>
+              </div>
+              <details class="text-[11px] text-slate-400">
+                <summary class="cursor-pointer hover:text-slate-200">View Raw MongoDB JSON Output</summary>
+                <pre id="raw-pub-years" class="mt-2 text-[10px] font-mono bg-slate-900 p-2 rounded text-slate-300 max-h-40 overflow-y-auto custom-scrollbar">Click "Run Query in MongoDB" to execute.</pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART 5: USER AGE AVAILABILITY (~39.7% MISSING) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">FIGURE 5</span>
+              <h3 class="text-sm font-bold text-white">User Age Data Availability (Present vs. Missing)</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Demonstrating the observed data gap where <code class="text-cyan-400 font-mono">Age</code> is absent in ~39.7% of reader records.</p>
+          </div>
+          <button onclick="runChartQuery('user-age')" class="bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 self-start sm:self-auto shadow-md shadow-cyan-600/20">
+            <i class="fa-solid fa-play text-[10px]"></i>
+            <span>Run Query in MongoDB</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div class="lg:col-span-7 bg-slate-950/70 border border-slate-800 rounded-xl p-4">
+            <div class="h-64 flex items-center justify-center">
+              <canvas id="chart-user-age"></canvas>
+            </div>
+          </div>
+
+          <div class="lg:col-span-5 space-y-3">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-mono text-slate-400 flex items-center space-x-1">
+                  <i class="fa-solid fa-code text-cyan-400"></i>
+                  <span>MongoDB Query (Collection: users)</span>
+                </span>
+                <button onclick="copyQuerySnippet('query-code-5')" class="text-[10px] text-slate-400 hover:text-cyan-400 transition">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <pre id="query-code-5" class="text-[11px] text-cyan-300 font-mono bg-slate-900 p-2.5 rounded-lg overflow-x-auto custom-scrollbar">db.users.aggregate([
+  {
+    $group: {
+      _id: {
+        $cond: [
+          { $ne: ["$Age", null] },
+          "Age Present",
+          "Age Missing"
+        ]
+      },
+      count: { $sum: 1 }
+    }
+  }
+])</pre>
+            </div>
+
+            <div id="telemetry-user-age" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-slate-400">Execution Telemetry:</span>
+                <span id="tel-time-user-age" class="text-cyan-400 font-mono">Ready to run</span>
+              </div>
+              <details class="text-[11px] text-slate-400">
+                <summary class="cursor-pointer hover:text-slate-200">View Raw MongoDB JSON Output</summary>
+                <pre id="raw-user-age" class="mt-2 text-[10px] font-mono bg-slate-900 p-2 rounded text-slate-300 max-h-40 overflow-y-auto custom-scrollbar">Click "Run Query in MongoDB" to execute.</pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- SECTION 3: LIVE MONGODB QUERY RUNNER & PLAYGROUND -->
+    <!-- ======================================================== -->
+    <div id="query-console" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <i class="fa-solid fa-terminal"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-white">Interactive MongoDB Query Console</h2>
+            <p class="text-xs text-slate-400">Execute custom aggregation pipelines or queries directly against your local MongoDB database.</p>
+          </div>
+        </div>
+
+        <!-- Quick Template Selector -->
+        <div class="flex items-center space-x-2">
+          <label class="text-xs text-slate-400">Load Template:</label>
+          <select id="query-template-select" onchange="loadQueryTemplate(this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+            <option value="ratings-dist">Rating Distribution Pipeline ($group)</option>
+            <option value="top-isbns">Top 10 Most Frequently Rated ISBNs</option>
+            <option value="stephen-king">Stephen King Books Catalogue (db.books)</option>
+            <option value="missing-age">Users with Missing Age (db.users)</option>
+            <option value="explicit-high">Explicit High Ratings 9-10</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Target Collection:</label>
+          <select id="custom-collection" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono">
+            <option value="ratings">ratings (~100,000+ docs)</option>
+            <option value="books">books (~100,000+ docs)</option>
+            <option value="users">users (~100,000+ docs)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Operation Type:</label>
+          <select id="custom-type" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono">
+            <option value="aggregate">Aggregate Pipeline (JSON Array)</option>
+            <option value="find">Find / Filter (JSON Object)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Limit Results:</label>
+          <input type="number" id="custom-limit" value="20" min="1" max="100" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Query / Pipeline Definition (JSON):</label>
+        <textarea id="custom-query-input" rows="7" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500 custom-scrollbar">[
+  { "$group": { "_id": "$Book-Rating", "count": { "$sum": 1 } } },
+  { "$sort": { "_id": 1 } }
+]</textarea>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <button onclick="executeCustomQuery()" id="run-custom-btn" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs transition flex items-center space-x-2 shadow-lg shadow-emerald-600/20">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Execute Query in MongoDB</span>
+        </button>
+        <span id="custom-query-telemetry" class="text-xs text-slate-400 font-mono"></span>
+      </div>
+
+      <!-- Custom Query Output Display -->
+      <div id="custom-query-output-box" class="hidden bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span class="font-mono text-emerald-400" id="custom-result-header">Results</span>
+          <button onclick="copyToClipboard(document.getElementById('custom-raw-output').textContent, 'Results copied!')" class="text-[11px] text-slate-400 hover:text-emerald-400">
+            <i class="fa-regular fa-copy"></i> Copy Output
+          </button>
+        </div>
+        <pre id="custom-raw-output" class="text-xs font-mono text-slate-200 bg-slate-900 p-3 rounded-lg max-h-72 overflow-y-auto custom-scrollbar"></pre>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 border-t border-slate-800 mt-12 py-5 text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span>Intelligent NoSQL Databases Project (CSE494) • Ananya Jaiswal (Reg No: 12312358)</span>
+      </div>
+      <div class="font-mono text-[11px]">
+        MongoDB Compass: mongodb://localhost:27017 | Database: bookcrossing_nosql
+      </div>
+    </div>
+  </footer>
+
+  <!-- Frontend Logic -->
+  <script>
+    const charts = {};
+
+    function showToast(title, msg, isError = false) {
+      const toast = document.getElementById('toast');
+      const icon = document.getElementById('toast-icon');
+      document.getElementById('toast-title').textContent = title;
+      document.getElementById('toast-msg').textContent = msg;
+
+      if (isError) {
+        icon.className = 'text-rose-400 mt-0.5';
+        icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-base"></i>';
+      } else {
+        icon.className = 'text-emerald-400 mt-0.5';
+        icon.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i>';
+      }
+
+      toast.classList.remove('hidden');
+      setTimeout(hideToast, 4000);
+    }
+
+    function hideToast() {
+      document.getElementById('toast').classList.add('hidden');
+    }
+
+    function copyToClipboard(text, msg = 'Copied to clipboard!') {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied', msg);
+      });
+    }
+
+    function copyQuerySnippet(elemId) {
+      const text = document.getElementById(elemId).textContent;
+      copyToClipboard(text, 'MongoDB Query copied for Compass!');
+    }
+
+    function scrollToQueryConsole() {
+      document.getElementById('query-console').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // 1. Fetch & display dataset metrics
+    async function refreshAllKPIs() {
+      try {
+        const res = await fetch('/api/kpi');
+        const data = await res.json();
+
+        document.getElementById('stat-books-count').textContent = Number(data.totalBooks || 0).toLocaleString();
+        document.getElementById('stat-ratings-count').textContent = Number(data.totalRatings || 0).toLocaleString();
+        document.getElementById('stat-users-count').textContent = Number(data.totalUsers || 0).toLocaleString();
+        document.getElementById('stat-avg-rating').textContent = `${data.avgExplicitRating || 0}/10`;
+        document.getElementById('stat-implicit-pct').textContent = `${data.implicitPct || 0}%`;
+        showToast('Updated', 'Dataset counts synchronized with MongoDB');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 2. Run Query in MongoDB for any specific chart
+    async function runChartQuery(chartKey) {
+      if (chartKey === 'rating-dist') {
+        const pipeline = [
+          { $group: { _id: "$Book-Rating", count: { $sum: 1 } } },
+          { $sort: { _id: 1 } }
+        ];
+        const res = await executeMongoPipeline('ratings', pipeline, 'rating-dist');
+        if (res) renderRatingDistChart(res.results);
+      }
+      else if (chartKey === 'top-books') {
+        const pipeline = [
+          {
+            $group: {
+              _id: "$ISBN",
+              totalRatings: { $sum: 1 },
+              explicitRatings: { $sum: { $cond: [{ $gt: ["$Book-Rating", 0] }, 1, 0] } },
+              sumScore: { $sum: { $cond: [{ $gt: ["$Book-Rating", 0] }, "$Book-Rating", 0] } }
+            }
+          },
+          { $match: { totalRatings: { $gte: 3 } } },
+          { $lookup: { from: "books", localField: "_id", foreignField: "ISBN", as: "book" } },
+          { $unwind: { path: "$book", preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 0,
+              isbn: "$_id",
+              title: { $ifNull: ["$book.Book-Title", "Unknown"] },
+              author: { $ifNull: ["$book.Book-Author", "Unknown"] },
+              totalRatings: 1,
+              meanPositiveRating: {
+                $cond: [
+                  { $gt: ["$explicitRatings", 0] },
+                  { $round: [{ $divide: ["$sumScore", "$explicitRatings"] }, 2] },
+                  0
+                ]
+              }
+            }
+          },
+          { $sort: { totalRatings: -1 } },
+          { $limit: 7 }
+        ];
+        const res = await executeMongoPipeline('ratings', pipeline, 'top-books');
+        if (res) renderTopBooksChart(res.results);
+      }
+      else if (chartKey === 'top-authors') {
+        const pipeline = [
+          { $match: { "Book-Author": { $nin: [null, "", "Unknown Author", "nan"] } } },
+          { $group: { _id: "$Book-Author", bookCount: { $sum: 1 } } },
+          { $sort: { bookCount: -1 } },
+          { $limit: 8 },
+          { $project: { _id: 0, author: "$_id", bookCount: 1 } }
+        ];
+        const res = await executeMongoPipeline('books', pipeline, 'top-authors');
+        if (res) renderTopAuthorsChart(res.results);
+      }
+      else if (chartKey === 'pub-years') {
+        const pipeline = [
+          { $match: { "Year-Of-Publication": { $gte: 1450, $lte: 2026 } } },
+          {
+            $project: {
+              yearBand: {
+                $switch: {
+                  branches: [
+                    { case: { $lte: ["$Year-Of-Publication", 1900] }, then: "≤1900" },
+                    { case: { $and: [{ $gte: ["$Year-Of-Publication", 1901] }, { $lte: ["$Year-Of-Publication", 1950] }] }, then: "1901–1950" },
+                    { case: { $and: [{ $gte: ["$Year-Of-Publication", 1951] }, { $lte: ["$Year-Of-Publication", 1980] }] }, then: "1951–1980" },
+                    { case: { $and: [{ $gte: ["$Year-Of-Publication", 1981] }, { $lte: ["$Year-Of-Publication", 1990] }] }, then: "1981–1990" },
+                    { case: { $and: [{ $gte: ["$Year-Of-Publication", 1991] }, { $lte: ["$Year-Of-Publication", 2000] }] }, then: "1991–2000" },
+                    { case: { $and: [{ $gte: ["$Year-Of-Publication", 2001] }, { $lte: ["$Year-Of-Publication", 2010] }] }, then: "2001–2010" },
+                    { case: { $gte: ["$Year-Of-Publication", 2011] }, then: "2011–2026" }
+                  ],
+                  default: "Other"
+                }
+              }
+            }
+          },
+          { $group: { _id: "$yearBand", count: { $sum: 1 } } }
+        ];
+        const res = await executeMongoPipeline('books', pipeline, 'pub-years');
+        if (res) {
+          const orderedBands = ['≤1900', '1901–1950', '1951–1980', '1981–1990', '1991–2000', '2001–2010', '2011–2026'];
+          const formatted = orderedBands.map(b => {
+            const match = res.results.find(r => r._id === b);
+            return { band: b, count: match ? match.count : 0 };
+          });
+          renderPubYearsChart(formatted);
+        }
+      }
+      else if (chartKey === 'user-age') {
+        const pipeline = [
+          {
+            $group: {
+              _id: { $cond: [{ $ne: ["$Age", null] }, "Age Present", "Age Missing"] },
+              count: { $sum: 1 }
+            }
+          }
+        ];
+        const res = await executeMongoPipeline('users', pipeline, 'user-age');
+        if (res) renderUserAgeChart(res.results);
+      }
+    }
+
+    // Helper: Execute pipeline against backend
+    async function executeMongoPipeline(collection, pipeline, domKey) {
+      const telEl = document.getElementById(`tel-time-${domKey}`);
+      const rawEl = document.getElementById(`raw-${domKey}`);
+      telEl.textContent = 'Executing query in MongoDB...';
+
+      try {
+        const res = await fetch('/api/query/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collection, type: 'aggregate', pipeline })
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          telEl.textContent = 'Query Failed!';
+          rawEl.textContent = `Error: ${data.error}`;
+          showToast('Query Error', data.error, true);
+          return null;
+        }
+
+        telEl.textContent = `⚡ Executed in ${data.executionTimeMs}ms • ${data.count} documents returned`;
+        rawEl.textContent = JSON.stringify(data.results, null, 2);
+        showToast('Query Executed', `MongoDB responded in ${data.executionTimeMs}ms`);
+        return data;
+      } catch (err) {
+        telEl.textContent = 'Network/Server Error';
+        rawEl.textContent = err.message;
+        showToast('Error', err.message, true);
+        return null;
+      }
+    }
+
+    // Chart 1 Renderer
+    function renderRatingDistChart(rawResults) {
+      const fullDist = Array.from({ length: 11 }, (_, i) => {
+        const match = rawResults.find(d => d._id === i);
+        return { rating: i, count: match ? match.count : 0 };
+      });
+
+      const ctx = document.getElementById('chart-rating-dist').getContext('2d');
+      if (charts.ratingDist) charts.ratingDist.destroy();
+
+      charts.ratingDist = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: fullDist.map(d => d.rating),
+          datasets: [{
+            data: fullDist.map(d => d.count),
+            backgroundColor: fullDist.map(d => d.rating === 0 ? 'rgba(148, 163, 184, 0.85)' : 'rgba(16, 185, 129, 0.85)'),
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${Number(ctx.raw).toLocaleString()} records (${ctx.label === '0' ? 'Implicit 0' : 'Explicit ' + ctx.label})`
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(51, 65, 85, 0.2)' }, ticks: { color: '#94a3b8' } },
+            y: { grid: { color: 'rgba(51, 65, 85, 0.2)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    // Chart 2 Renderer
+    function renderTopBooksChart(results) {
+      const ctx = document.getElementById('chart-top-books').getContext('2d');
+      if (charts.topBooks) charts.topBooks.destroy();
+
+      charts.topBooks = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: results.map(d => d.title.length > 22 ? d.title.substring(0, 20) + '...' : d.title),
+          datasets: [{
+            data: results.map(d => d.totalRatings),
+            backgroundColor: 'rgba(59, 130, 246, 0.85)',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => {
+                  const item = results[ctx.dataIndex];
+                  return ` ${item.totalRatings} ratings | Positive Mean: ${item.meanPositiveRating}/10 (${item.author})`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(51, 65, 85, 0.2)' }, ticks: { color: '#94a3b8' } },
+            y: { grid: { display: false }, ticks: { color: '#cbd5e1' } }
+          }
+        }
+      });
+    }
+
+    // Chart 3 Renderer
+    function renderTopAuthorsChart(results) {
+      const ctx = document.getElementById('chart-top-authors').getContext('2d');
+      if (charts.topAuthors) charts.topAuthors.destroy();
+
+      charts.topAuthors = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: results.map(d => d.author),
+          datasets: [{
+            data: results.map(d => d.bookCount),
+            backgroundColor: 'rgba(234, 179, 8, 0.85)',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#cbd5e1', maxRotation: 40, minRotation: 40 } },
+            y: { grid: { color: 'rgba(51, 65, 85, 0.2)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    // Chart 4 Renderer
+    function renderPubYearsChart(formattedResults) {
+      const ctx = document.getElementById('chart-pub-years').getContext('2d');
+      if (charts.pubYears) charts.pubYears.destroy();
+
+      charts.pubYears = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: formattedResults.map(d => d.band),
+          datasets: [{
+            data: formattedResults.map(d => d.count),
+            backgroundColor: 'rgba(168, 85, 247, 0.85)',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#cbd5e1' } },
+            y: { grid: { color: 'rgba(51, 65, 85, 0.2)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    // Chart 5 Renderer
+    function renderUserAgeChart(results) {
+      const ctx = document.getElementById('chart-user-age').getContext('2d');
+      if (charts.userAge) charts.userAge.destroy();
+
+      const labels = results.map(r => r._id);
+      const counts = results.map(r => r.count);
+
+      charts.userAge = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: counts,
+            backgroundColor: ['rgba(6, 182, 212, 0.85)', 'rgba(244, 63, 94, 0.85)'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 12 } } },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.label}: ${Number(ctx.raw).toLocaleString()} users`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 3. Custom Query Console & Templates
+    const templates = {
+      'ratings-dist': {
+        col: 'ratings',
+        type: 'aggregate',
+        code: `[\n  { "$group": { "_id": "$Book-Rating", "count": { "$sum": 1 } } },\n  { "$sort": { "_id": 1 } }\n]`
+      },
+      'top-isbns': {
+        col: 'ratings',
+        type: 'aggregate',
+        code: `[\n  { "$group": { "_id": "$ISBN", "ratingCount": { "$sum": 1 } } },\n  { "$sort": { "ratingCount": -1 } },\n  { "$limit": 10 }\n]`
+      },
+      'stephen-king': {
+        col: 'books',
+        type: 'find',
+        code: `{\n  "Book-Author": "Stephen King"\n}`
+      },
+      'missing-age': {
+        col: 'users',
+        type: 'find',
+        code: `{\n  "$or": [{ "Age": null }, { "Age": { "$exists": false } }]\n}`
+      },
+      'explicit-high': {
+        col: 'ratings',
+        type: 'find',
+        code: `{\n  "Book-Rating": { "$gte": 9, "$lte": 10 }\n}`
+      }
+    };
+
+    function loadQueryTemplate(key) {
+      const t = templates[key];
+      if (!t) return;
+      document.getElementById('custom-collection').value = t.col;
+      document.getElementById('custom-type').value = t.type;
+      document.getElementById('custom-query-input').value = t.code;
+    }
+
+    async function executeCustomQuery() {
+      const collection = document.getElementById('custom-collection').value;
+      const type = document.getElementById('custom-type').value;
+      const limit = parseInt(document.getElementById('custom-limit').value) || 20;
+      const rawQuery = document.getElementById('custom-query-input').value.trim();
+
+      let parsed = null;
+      try {
+        parsed = JSON.parse(rawQuery);
+      } catch (e) {
+        showToast('JSON Syntax Error', 'Please check your JSON format: ' + e.message, true);
+        return;
+      }
+
+      const btn = document.getElementById('run-custom-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Executing in MongoDB...';
+
+      const payload = { collection, type, limit };
+      if (type === 'aggregate') {
+        payload.pipeline = Array.isArray(parsed) ? parsed : [parsed];
+      } else {
+        payload.filter = parsed;
+      }
+
+      try {
+        const res = await fetch('/api/query/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        const box = document.getElementById('custom-query-output-box');
+        const tel = document.getElementById('custom-query-telemetry');
+        const header = document.getElementById('custom-result-header');
+        const rawEl = document.getElementById('custom-raw-output');
+
+        box.classList.remove('hidden');
+
+        if (!data.success) {
+          tel.textContent = `Query Failed (${data.executionTimeMs}ms)`;
+          header.textContent = 'MongoDB Execution Error:';
+          rawEl.textContent = data.error;
+          showToast('Execution Error', data.error, true);
+        } else {
+          tel.textContent = `⚡ Executed in ${data.executionTimeMs}ms • ${data.count} documents returned`;
+          header.textContent = `MongoDB Output (collection: ${collection}, ${data.count} documents):`;
+          rawEl.textContent = JSON.stringify(data.results, null, 2);
+          showToast('Query Completed', `Returned ${data.count} docs in ${data.executionTimeMs}ms`);
+        }
+      } catch (err) {
+        showToast('Server Error', err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> <span>Execute Query in MongoDB</span>';
+      }
+    }
+
+    // Auto-bootstrap and run all 5 queries on initial load
+    window.addEventListener('DOMContentLoaded', async () => {
+      await refreshAllKPIs();
+      await runChartQuery('rating-dist');
+      await runChartQuery('top-books');
+      await runChartQuery('top-authors');
+      await runChartQuery('pub-years');
+      await runChartQuery('user-age');
+    });
+  </script>
+</body>
+</html>
